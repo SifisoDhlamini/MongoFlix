@@ -209,14 +209,11 @@ def build_query_sort_project(filters):
 def get_movies(filters, page, movies_per_page):
     """
     Returns a cursor to a list of movie documents.
-
     Based on the page number and the number of movies per page, the result may
     be skipped and limited.
-
     The `filters` from the API are passed to the `build_query_sort_project`
     method, which constructs a query, sort, and projection, and then that query
     is executed by this method (`get_movies`).
-
     Returns 2 elements in a tuple: (movies, total_num_movies)
     """
     query, sort, project = build_query_sort_project(filters)
@@ -230,18 +227,16 @@ def get_movies(filters, page, movies_per_page):
         total_num_movies = db.movies.count_documents(query)
     """
     Ticket: Paging
-
     Before this method returns back to the API, use the "movies_per_page"
     argument to decide how many movies get displayed per page. The "page"
     argument will decide which page
-
     Paging can be implemented by using the skip() and limit() methods against
     the Pymongo cursor.
     """
 
     # TODO: Paging
     # Use the cursor to only return the movies that belong on the current page.
-    movies = cursor.limit(movies_per_page)
+    movies = cursor.skip(page * movies_per_page).limit(movies_per_page)
 
     return (list(movies), total_num_movies)
 
@@ -270,6 +265,31 @@ def get_movie(id):
             {
                 "$match": {
                     "_id": ObjectId(id)
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "comments",
+                    "let": {
+                        "id": "$_id"
+                    },
+                    "pipeline": [
+                        {
+                            "$match": {
+                                "$expr": {
+                                    "$eq": [
+                                        "$movie_id", "$$id"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "$sort": {
+                                "date": DESCENDING
+                            }
+                        }
+                    ],
+                    "as": "comments"
                 }
             }
         ]
